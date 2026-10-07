@@ -19,7 +19,7 @@ const connect = () =>
     })
     .catch(err => {
       console.error(err);
-      console.error(`[MongoDB] ERRROR: NON CONNECTED! -> ${mongoURL}`);
+      console.error('[MongoDB] Connection failed');
     });
 
 connect();

@@ -13,10 +13,16 @@ if (process.env.ENV === 'dev' && fs.existsSync(path.resolve(__dirname, '.env.dev
 
 const app = require('./app');
 
-// Replace MongoDB connection with mock database
-const { connectDB } = require('./db/mockDatabase');
-connectDB();
+const connection = require('./db/connect');
 
-app.listen(process.env.PORT || 4000, () => {
-  console.log(`Server running on port ${process.env.PORT || 4000}`);
-});
+connection
+  .asPromise()
+  .then(() => {
+    app.listen(process.env.PORT || 8000, () => {
+      console.warn(`Server running on port ${process.env.PORT || 8000}`);
+    });
+  })
+  .catch(error => {
+    console.error('API startup failed:', error.message);
+    process.exit(1);
+  });

@@ -37,11 +37,6 @@ app.use(cookieParser());
 app.use(trimmer());
 app.use(passport());
 app.use('/api-docs', swaggerUI.serve, swaggerUI.setup(swaggerSpec));
-app.use((req, res, next) => {
-  req.io = io;
-  return next();
-});
-
 app.get('/', (req, res, next) => next(SendData({ message: 'RestAPI is alive!' })));
 
 const excludedPaths = [];
