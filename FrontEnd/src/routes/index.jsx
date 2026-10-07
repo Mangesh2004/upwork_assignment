@@ -11,7 +11,7 @@ import Sidebar from '../components/core/layout/Sidebar';
 
 import Login from '../components/core/user/Login';
 import ChangePassword from '../components/core/user/ChangePassword';
-import Home from './Home';
+import Transactions from './Transactions';
 
 import AuthRoute from '../components/routes/AuthRoute';
 import GuestRoute from '../components/routes/GuestRoute';
@@ -39,7 +39,7 @@ const Index = () => {
           </AuthRoute>
         </Layout>
       ),
-      children: [{ path: '/', index: true, element: <Home /> }]
+      children: [{ path: '/', index: true, element: <Transactions /> }]
     },
     {
       path: '/',
