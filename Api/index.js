@@ -14,10 +14,14 @@ if (process.env.ENV === 'dev' && fs.existsSync(path.resolve(__dirname, '.env.dev
 const app = require('./app');
 
 const connection = require('./db/connect');
+const ensureDemoUser = require('./db/ensureDemoUser');
 
 connection
   .asPromise()
-  .then(() => {
+  .then(async () => {
+    if (process.env.ENV === 'dev' && (await ensureDemoUser()))
+      console.warn('[Seed] Demo user test@meblabs.com created');
+
     app.listen(process.env.PORT || 8000, () => {
       console.warn(`Server running on port ${process.env.PORT || 8000}`);
     });
