@@ -1,11 +1,14 @@
 #!/bin/bash
-
-mongosh -- "$MONGO_DATABASE_NAME" <<-EOJS
-	var rootUser = '$MONGO_INITDB_ROOT_USERNAME';
-	var rootPassword = '$MONGO_INITDB_ROOT_PASSWORD';
-	var admin = db.getSiblingDB('admin');
-	admin.auth(rootUser, rootPassword);
-	var user = '$MONGO_DATABASE_USERNAME';
-	var passwd = '$MONGO_DATABASE_PASSWORD';
-	db.createUser({user: user, pwd: passwd, roles: ["dbOwner"]});
-EOJS
+set -e
+mongosh --quiet --eval '
+const admin = db.getSiblingDB("admin");
+admin.auth(process.env.MONGO_INITDB_ROOT_USERNAME, process.env.MONGO_INITDB_ROOT_PASSWORD);
+const database = db.getSiblingDB(process.env.MONGO_DATABASE_NAME);
+if (!database.getUser(process.env.MONGO_DATABASE_USERNAME)) {
+  database.createUser({
+    user: process.env.MONGO_DATABASE_USERNAME,
+    pwd: process.env.MONGO_DATABASE_PASSWORD,
+    roles: [{ role: "dbOwner", db: process.env.MONGO_DATABASE_NAME }]
+  });
+}
+'

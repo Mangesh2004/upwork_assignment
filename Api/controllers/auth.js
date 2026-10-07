@@ -1,113 +1,47 @@
-const passport = require('passport');
+const bcrypt = require('bcryptjs');
 const User = require('../models/user');
 const {
   SendData,
   ServerError,
   NotFound,
   EmailAlreadyExists,
-  DeletedAccount,
-  Unauthorized,
-  BadRequest,
-  AlreadyExists
+  InactiveAccount,
+  WrongEmail,
+  WrongPassword
 } = require('../helpers/response');
 const { generateToken, clearTokens } = require('../helpers/auth');
-const { registerEmail, changePasswordEmail, inviteEmail } = require('../emails');
 const { langs, defaultLang } = require('../config');
-const { canChangePassword } = require('../rbac/users');
-const { canUpdateCompany } = require('../rbac/companies');
 
-// FIXED: Mock-compatible login that doesn't rely on passport local strategy
-exports.login = async (req, res, next) => {
+const toProfile = user => ({ id: user.id, email: user.email, ...user.response('profile') });
+
+exports.login = async ({ body: { email, password } }, res, next) => {
   try {
-    const { email, password } = req.body;
-    
-    // For testing with mock database, accept any credentials
-    // In production, you would validate against the database
-    if (!email || !password) {
-      return next(BadRequest('Email and password required'));
-    }
-    
-    // Create a mock user object for testing
-    const mockUser = {
-      _id: '1',
-      email: email,
-      name: 'Test User',
-      lastname: 'User',
-      fullname: 'Test User',
-      role: 'user',
-      lang: 'en',
-      phone: '+1234567890',
-      active: true,
-      deleted: false,
-      response: function() {
-        return {
-          id: this._id,
-          email: this.email,
-          name: this.name,
-          lastname: this.lastname,
-          fullname: this.fullname,
-          role: this.role,
-          lang: this.lang,
-          phone: this.phone
-        };
-      }
-    };
-    
-    // Generate tokens
-    await generateToken(res, mockUser);
-    
-    return next(SendData(mockUser.response()));
+    const user = await User.findOne(
+      { email: email.toLowerCase() },
+      { ...User.getProjectFields('profile'), email: 1, password: 1, active: 1 }
+    );
+    if (!user) return next(WrongEmail());
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return next(WrongPassword());
+    if (!user.active) return next(InactiveAccount());
+
+    await generateToken(res, user);
+
+    return next(SendData(toProfile(user)));
   } catch (e) {
     return next(ServerError(e));
   }
 };
 
-// Keep all other functions as they are, but make them work with mock data
-exports.check = async (req, res, next) => {
-  try {
-    // Return mock user data for testing
-    const mockData = {
-      _id: '1',
-      email: 'test@meblabs.com',
-      name: 'Test User',
-      lastname: 'User',
-      fullname: 'Test User',
-      role: 'user',
-      lang: 'en',
-      phone: '+1234567890',
-      active: true,
-      deleted: false,
-      response: function() {
-        return {
-          id: this._id,
-          email: this.email,
-          name: this.name,
-          lastname: this.lastname,
-          fullname: this.fullname,
-          role: this.role,
-          lang: this.lang,
-          phone: this.phone
-        };
-      }
-    };
-    return next(SendData(mockData.response()));
-  } catch (err) {
-    return next(Unauthorized(err));
-  }
-};
+exports.check = async (req, { locals: { user } }, next) => next(SendData(toProfile(user)));
 
 exports.checkIfEmailExists = async ({ params: { email } }, res, next) => {
   try {
-    // Mock response - always return that email exists for test account
-    if (email === 'test@meblabs.com') {
-      const response = { 
-        message: 'Email exists!', 
-        id: '1',
-        email: email
-      };
-      return next(SendData(response));
-    }
-    return next(NotFound());
+    const user = await User.findOne({ email: email.toLowerCase() }, { _id: 1, email: 1 });
+    if (!user) return next(NotFound());
+
+    return next(SendData({ message: 'Email exists!', id: user.id, email: user.email }));
   } catch (err) {
     return next(ServerError(err));
   }
@@ -123,41 +57,17 @@ exports.resendActivationEmail = async ({ body: { email } }, res, next) => {
   }
 };
 
-exports.register = async (req, res, next) => {
+exports.register = async ({ body }, res, next) => {
   try {
-    if (req.body.lang && !langs.includes(req.body.lang)) {
-      req.body.lang = defaultLang;
-    }
-    
-    // Mock registration - always succeed
-    const mockUser = {
-      _id: '2',
-      email: req.body.email,
-      name: req.body.name || 'New User',
-      lastname: req.body.lastname || '',
-      fullname: `${req.body.name || 'New'} ${req.body.lastname || 'User'}`,
-      role: 'user',
-      lang: req.body.lang || 'en',
-      phone: req.body.phone || '',
-      active: true,
-      deleted: false,
-      response: function() {
-        return {
-          id: this._id,
-          email: this.email,
-          name: this.name,
-          lastname: this.lastname,
-          fullname: this.fullname,
-          role: this.role,
-          lang: this.lang,
-          phone: this.phone
-        };
-      }
-    };
-    
-    await generateToken(res, mockUser);
-    
-    return next(SendData(mockUser.response()));
+    if (!body.lang || !langs.includes(body.lang.toLowerCase())) body.lang = defaultLang;
+
+    if (await User.exists({ email: body.email.toLowerCase() })) return next(EmailAlreadyExists());
+
+    // Accounts are activated immediately: this project has no email delivery for activation links
+    const user = await new User({ ...body, active: true, roles: ['user'] }).save();
+    await generateToken(res, user);
+
+    return next(SendData(toProfile(user)));
   } catch (e) {
     return next(ServerError(e));
   }
@@ -170,7 +80,7 @@ exports.invite = async ({ body }, { locals: { user } }, next) => {
       _id: '3',
       email: body.email,
       name: body.name || 'Invited User',
-      response: function() {
+      response() {
         return {
           id: this._id,
           email: this.email,
@@ -186,21 +96,10 @@ exports.invite = async ({ body }, { locals: { user } }, next) => {
 
 exports.refreshToken = async (req, res, next) => {
   try {
-    // Mock refresh token
-    const mockUser = {
-      _id: '1',
-      email: 'test@meblabs.com',
-      name: 'Test User',
-      response: function() {
-        return {
-          id: this._id,
-          email: this.email,
-          name: this.name
-        };
-      }
-    };
-    await generateToken(res, mockUser);
-    return next(SendData(mockUser.response()));
+    const { user } = res.locals;
+    await generateToken(res, user);
+
+    return next(SendData(toProfile(user)));
   } catch (e) {
     return next(ServerError(e));
   }

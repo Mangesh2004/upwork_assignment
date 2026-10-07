@@ -1,5 +1,3 @@
-version: "3.7"
-
 services:
   mongo:
     image: mongo
@@ -17,11 +15,15 @@ services:
     image: node:20-alpine
     container_name: Fullstack-test-api
     env_file: ./Api/.env
+    environment:
+      ENV: dev
+      PORT: "8000"
+      MONGO_DATABASE_HOST: mongo
+      CORS_ORIGIN: http://localhost:3000
     depends_on:
       - mongo
     ports:
-      - "3000:3000"
-      - "587:587"
+      - "8000:8000"
     volumes:
       - ./Api:/data
     working_dir: /data
@@ -31,7 +33,9 @@ services:
     image: node:20-alpine
     container_name: Fullstack-test-frontend
     ports:
-      - "80:3000"
+      - "3000:3000"
+    environment:
+      VITE_ENDPOINT: http://localhost:8000
     volumes:
       - ./FrontEnd:/data
     working_dir: /data

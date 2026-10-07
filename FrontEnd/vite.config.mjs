@@ -1,11 +1,10 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import eslint from 'vite-plugin-eslint';
 
 export default ({ mode }) =>
   defineConfig({
-    plugins: [react(), eslint()],
+    plugins: [react()],
     define: {
       'process.env.NODE_ENV': `"${mode}"`
     },
@@ -15,6 +14,6 @@ export default ({ mode }) =>
       },
       host: true,
       strictPort: true,
-      port: 80
+      port: 3000
     }
   });
