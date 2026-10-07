@@ -8,6 +8,7 @@
     "start": "node index.js",
     "test": "jest --runInBand",
     "test:coverage": "jest --coverage --runInBand --silent",
+    "test:transactions": "jest specs/transactions.test.js --runInBand",
     "seed": "dotenv cross-var docker exec %MONGO_DATABASE_CONTAINER% /seed/seeder.sh && npm run migrate:up",
     "reset": "dotenv cross-var docker exec %MONGO_DATABASE_CONTAINER% /seed/reset.sh && npm run migrate:up",
     "migrate:up": "ENV=$(cat /home/ec2-user/env 2>/dev/null || echo dev) npx migrate up --store=./db/db-migrate-store.js --migrations-dir ./db/migrations",

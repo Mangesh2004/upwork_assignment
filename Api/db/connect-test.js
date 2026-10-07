@@ -1,16 +1,25 @@
 /* eslint-disable no-console */
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const config = require('./config');
+
+// MONGO_TEST_URI points to a dedicated, disposable database (it is wiped before every test).
+// Without it an in-memory server is used, which needs the optional mongodb-memory-server package.
+const getMongoUri = async () => {
+  if (process.env.MONGO_TEST_URI) return process.env.MONGO_TEST_URI;
+
+  // eslint-disable-next-line global-require, import/no-unresolved
+  const { MongoMemoryServer } = require('mongodb-memory-server');
+  const mongoServer = await MongoMemoryServer.create();
+  global.__MONGOINSTANCE = mongoServer;
+  return mongoServer.getUri();
+};
 
 const connect = async () => {
   // Prevent MongooseError: Can't call `openUri()` on
   // an active connection with different connection strings
   await mongoose.disconnect();
 
-  const mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
-  global.__MONGOINSTANCE = mongoServer;
+  const mongoUri = await getMongoUri();
   return mongoose
     .set('strictQuery', false)
     .connect(mongoUri, config)
@@ -22,7 +31,7 @@ const connect = async () => {
 const close = async () => {
   try {
     await mongoose.disconnect();
-    await global.__MONGOINSTANCE.stop();
+    if (global.__MONGOINSTANCE) await global.__MONGOINSTANCE.stop();
   } catch (err) {
     console.error(err);
   }
